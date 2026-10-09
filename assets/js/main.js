@@ -6,65 +6,93 @@
   // Entrance
   requestAnimationFrame(function () { requestAnimationFrame(function () { doc.classList.add('loaded'); }); });
 
-  // Hero background video: always muted/inline autoplay (attributes in HTML), with a JS play() fallback
-  var hv = document.querySelector('.hero-video');
+  // Hero background video ---------------------------------------------------------------
+  // Robust autoplay: muted attr in HTML + muted/defaultMuted in JS before every play(),
+  // play() on several media events with retries, bfcache (pageshow) + visibility handling.
+  // Nothing pauses it programmatically except the user's Pause toggle (or opening a media item).
+  var hv = document.getElementById('hero-video');
   var mt = document.querySelector('.motion-toggle');
-  var userPaused = false, heroOff = false;
+  var snd = document.querySelector('.sound-toggle');
+  var userPaused = false, wantSound = false, retryT = null, retries = 0;
   function tryPlay() {
-    if (!hv || userPaused || heroOff) return;
-    if (!hv.dataset.init) { hv.muted = true; hv.defaultMuted = true; hv.dataset.init = '1'; }
-    hv.playsInline = true; hv.setAttribute('playsinline', '');
-    var p = hv.play(); if (p && p.catch) p.catch(function () {});
-  }
-  if (hv) {
-    tryPlay();
-    hv.addEventListener('loadeddata', tryPlay);
-    hv.addEventListener('canplay', tryPlay);
-    // iOS Low Power Mode / strict autoplay: start on the first user interaction
-    ['touchstart', 'pointerdown', 'scroll', 'keydown'].forEach(function (ev) {
-      window.addEventListener(ev, function once() { if (hv.paused) tryPlay(); window.removeEventListener(ev, once); }, { passive: true });
+    if (!hv || userPaused || document.hidden) return;
+    if (!wantSound) { hv.muted = true; hv.defaultMuted = true; hv.setAttribute('muted', ''); }
+    hv.playsInline = true;
+    if (!hv.paused && hv.readyState > 2) { retries = 0; return; }
+    var p = hv.play();
+    if (p && p.then) p.then(function () { retries = 0; }).catch(function () {
+      // e.g. not enough data yet, or a transient block: back off and retry a few times
+      if (wantSound) { wantSound = false; hv.muted = true; syncSound(); }
+      clearTimeout(retryT);
+      if (retries++ < 8) retryT = setTimeout(tryPlay, Math.min(250 * retries, 2000));
     });
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) tryPlay(); });
-    // Accessible pause control (WCAG 2.2.2); reduced-motion users start paused
+  }
+  function syncToggle() { if (mt) { mt.textContent = userPaused ? 'Play background video' : 'Pause background video'; mt.setAttribute('aria-pressed', userPaused); } }
+  function syncSound() {
+    if (!snd || !hv) return;
+    var on = !hv.muted;
+    snd.setAttribute('aria-pressed', on);
+    snd.querySelector('span').textContent = on ? 'Sound off' : 'Sound on';
+    snd.setAttribute('aria-label', on ? 'Mute background video' : 'Unmute background video');
+    syncHint();
+  }
+  // TEMPORARY: bouncing "click" hint next to Sound on (remove this block + hint markup/CSS)
+  var hint = document.getElementById('click-hint'), hintDismissed = false;
+  function syncHint() {
+    if (!hint || !hv) return;
+    hint.hidden = hintDismissed || !hv.muted || hv.paused;
+  }
+  if (hint) hint.addEventListener('click', function () { hintDismissed = true; if (snd) snd.click(); syncHint(); });
+  if (hint) {
+    // Hide permanently (for this page view) on the first meaningful scroll away from the top
+    var hintScroll = function () {
+      if (window.scrollY > 80) { hintDismissed = true; syncHint(); window.removeEventListener('scroll', hintScroll); }
+    };
+    window.addEventListener('scroll', hintScroll, { passive: true });
+    hintScroll();
+  }
+  // END TEMPORARY
+
+  if (hv) {
     if (reduce) { userPaused = true; hv.removeAttribute('autoplay'); hv.pause(); }
-    function syncToggle() { if (mt) { mt.textContent = userPaused ? 'Play background video' : 'Pause background video'; mt.setAttribute('aria-pressed', userPaused); } }
+    ['loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'stalled', 'suspend'].forEach(function (ev) {
+      hv.addEventListener(ev, function () { if (hv.paused) tryPlay(); });
+    });
+    ['play', 'playing', 'pause'].forEach(function (ev) { hv.addEventListener(ev, syncHint); });
+    hv.addEventListener('volumechange', syncSound);
+    tryPlay();
+    window.addEventListener('load', tryPlay);
+    window.addEventListener('pageshow', function () { retries = 0; tryPlay(); });            // bfcache restore
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) { retries = 0; tryPlay(); } });
+    window.addEventListener('focus', function () { if (hv.paused) tryPlay(); });
+    // Strict autoplay environments (iOS Low Power Mode etc.): start on first interaction
+    ['touchstart', 'pointerdown', 'keydown', 'wheel', 'scroll'].forEach(function (ev) {
+      window.addEventListener(ev, function once() { if (hv.paused) { retries = 0; tryPlay(); } window.removeEventListener(ev, once); }, { passive: true });
+    });
+    // Watchdog for the first few seconds after load
+    var wd = 0, wdT = setInterval(function () { if (++wd > 10 || userPaused) return clearInterval(wdT); if (hv.paused) tryPlay(); }, 600);
+
     if (mt) mt.addEventListener('click', function () {
       userPaused = !userPaused;
-      if (userPaused) hv.pause(); else tryPlay();
-      syncToggle();
+      if (userPaused) hv.pause(); else { retries = 0; tryPlay(); }
+      syncToggle(); syncHint();
     });
-    syncToggle();
-
-    // Sound toggle (video autoplays muted; unmuting needs this user click)
-    var snd = document.querySelector('.sound-toggle');
-    function syncSound() {
-      if (!snd) return;
-      var on = !hv.muted;
-      snd.setAttribute('aria-pressed', on);
-      snd.querySelector('span').textContent = on ? 'Sound off' : 'Sound on';
-      snd.setAttribute('aria-label', on ? 'Mute background video' : 'Unmute background video');
-    }
     if (snd) snd.addEventListener('click', function () {
-      var turnOn = hv.muted;
-      hv.muted = !turnOn; hv.defaultMuted = !turnOn;
-      if (turnOn) {
-        if (hv.paused) { userPaused = false; syncToggle(); }
-        var pp = hv.play(); if (pp && pp.catch) pp.catch(function () { hv.muted = true; syncSound(); });
-      }
+      hintDismissed = true;                       // TEMPORARY hint
+      wantSound = hv.muted;
+      hv.muted = !wantSound; hv.defaultMuted = !wantSound;
+      if (wantSound) { if (userPaused) { userPaused = false; syncToggle(); } retries = 0; tryPlay(); var p = hv.play(); if (p && p.catch) p.catch(function () {}); }
       syncSound();
     });
-    hv.addEventListener('volumechange', syncSound);
-    syncSound();
-    window.heroVideo = { el: hv, mute: function () { hv.muted = true; syncSound(); } };
+    syncToggle(); syncSound();
 
-    // Pause when the hero is off-screen (saves CPU; stops audio as you leave), resume on return
+    // Leaving the hero with sound on: mute (keep playing), never pause
     if ('IntersectionObserver' in window) {
-      var heroVisible = true;
       new IntersectionObserver(function (en) {
-        heroVisible = en[0].isIntersecting; heroOff = !heroVisible;
-        if (!heroVisible) hv.pause(); else if (!userPaused && !document.querySelector('.player.show')) tryPlay();
-      }, { threshold: 0.12 }).observe(document.querySelector('.hero'));
+        if (!en[0].isIntersecting && !hv.muted) { wantSound = false; hv.muted = true; syncSound(); }
+      }, { threshold: 0.05 }).observe(document.querySelector('.hero'));
     }
+    window.heroVideo = { el: hv, play: function () { retries = 0; tryPlay(); }, isUserPaused: function () { return userPaused; } };
   }
 
   // Nav: scrolled state, mobile menu, active link
@@ -141,52 +169,6 @@
     v.addEventListener('pause', function () { vf.classList.remove('playing'); });
   }
 
-  // Lightbox
-  var lb = document.getElementById('lightbox');
-  var items = [].slice.call(document.querySelectorAll('.g-open'));
-  var idx = 0, lastFocus = null;
-  var lbImg = lb.querySelector('img'), lbCap = lb.querySelector('figcaption');
-  function show(i) {
-    idx = (i + items.length) % items.length;
-    var it = items[idx];
-    lbImg.src = it.getAttribute('data-full');
-    lbImg.alt = it.querySelector('img').alt;
-    lbCap.textContent = it.getAttribute('data-caption');
-  }
-  function openLb(i) {
-    lastFocus = document.activeElement; show(i);
-    lb.hidden = false; document.body.style.overflow = 'hidden';
-    requestAnimationFrame(function () { lb.classList.add('show'); });
-    lb.querySelector('.lb-close').focus();
-  }
-  function closeLb() {
-    lb.classList.remove('show'); document.body.style.overflow = '';
-    setTimeout(function () { lb.hidden = true; }, reduce ? 0 : 350);
-    if (lastFocus) lastFocus.focus();
-  }
-  items.forEach(function (b, i) { b.addEventListener('click', function () { openLb(i); }); });
-  lb.querySelector('.lb-close').addEventListener('click', closeLb);
-  lb.querySelector('.lb-prev').addEventListener('click', function () { show(idx - 1); });
-  lb.querySelector('.lb-next').addEventListener('click', function () { show(idx + 1); });
-  lb.addEventListener('click', function (e) { if (e.target === lb) closeLb(); });
-  document.addEventListener('keydown', function (e) {
-    if (lb.hidden) return;
-    if (e.key === 'Escape') closeLb();
-    else if (e.key === 'ArrowRight') show(idx + 1);
-    else if (e.key === 'ArrowLeft') show(idx - 1);
-    else if (e.key === 'Tab') { // simple focus trap
-      var f = lb.querySelectorAll('button'), first = f[0], last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    }
-  });
-  var tx = null;
-  lb.addEventListener('touchstart', function (e) { tx = e.touches[0].clientX; }, { passive: true });
-  lb.addEventListener('touchend', function (e) {
-    if (tx === null) return; var dx = e.changedTouches[0].clientX - tx;
-    if (Math.abs(dx) > 50) show(idx + (dx < 0 ? 1 : -1)); tx = null;
-  });
-
   // Scroll-linked portrait: travels from the hero slot into the About slot (desktop, motion OK)
   var morph = document.getElementById('morph');
   var heroSlot = document.getElementById('hero-slot');
@@ -199,13 +181,13 @@
     // measure slots without transforms from entrance/reveal animations
     var hp = heroSlot.parentElement, ap = aboutSlot.closest('.about-portrait');
     var ht = hp.style.transform, at = ap.style.transform;
-    hp.style.transition = ap.style.transition = 'none'; hp.style.transform = 'translateY(-46%)'; ap.style.transform = 'none';
+    hp.style.transition = ap.style.transition = 'none'; hp.style.transform = 'none'; ap.style.transform = 'none';
     var a = docRect(heroSlot), b = docRect(aboutSlot);
     hp.style.transform = ht; ap.style.transform = at; hp.style.transition = ap.style.transition = '';
     var vh = window.innerHeight;
     var end = Math.max(1, b.y + b.h / 2 - vh / 2 - 20);   // scroll position where the About slot sits centered
     geo = { a: a, b: b, end: end,
-      ra: a.w / 2, rb: parseFloat(getComputedStyle(aboutSlot).borderTopLeftRadius) || 240 };
+      ra: a.w / 2, rb: Math.min(b.w / 2, parseFloat(getComputedStyle(aboutSlot).borderTopLeftRadius) || 240) };
     doc.classList.add('morph-on');
     placeMorph();
   }
@@ -306,6 +288,7 @@
       player.classList.remove('show'); document.body.style.overflow = '';
       setTimeout(function () { player.hidden = true; stage.innerHTML = ''; }, reduce ? 0 : 300);
       if (pLast) pLast.focus();
+      if (heroWasPlaying && window.heroVideo) window.heroVideo.play();
     };
     document.querySelectorAll('.m-open').forEach(function (b) { b.addEventListener('click', function () { openPlayer(b); }); });
     pClose.addEventListener('click', closePlayer);
