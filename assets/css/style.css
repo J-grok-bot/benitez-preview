@@ -100,8 +100,8 @@ p{margin:0 0 1.1em;color:var(--ivory-2)}
 .hero-portrait{position:absolute;right:calc(var(--pad) + 70px);top:50%;margin:0;width:clamp(240px,22vw,360px);transform:translateY(-46%);z-index:1}
 .js .hero-portrait.hero-in{transform:translateY(-40%)}
 .js.loaded .hero-portrait.hero-in{transform:translateY(-46%)}
-.hp-arch{border-radius:999px 999px 4px 4px;overflow:hidden;aspect-ratio:3/4;box-shadow:0 40px 100px rgba(0,0,0,.55);outline:1px solid rgba(244,237,228,.25);outline-offset:12px}
-.hp-arch img{width:100%;height:100%;object-fit:cover;object-position:50% 35%;transform:scale(1.08)}
+.hp-arch{border-radius:999px 999px 6px 6px;overflow:hidden;aspect-ratio:4/5.3;background:var(--ink-3);box-shadow:0 40px 100px rgba(0,0,0,.55);outline:1px solid rgba(244,237,228,.25);outline-offset:12px}
+.hp-arch img{width:100%;height:100%;object-fit:cover;object-position:50% 22%}
 .hero-portrait figcaption{margin-top:26px;text-align:center;font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:rgba(244,237,228,.6)}
 .hero-portrait figcaption em{font-family:var(--serif);font-size:16px;letter-spacing:.02em;text-transform:none;color:var(--rose)}
 @media (max-width:1100px){.hero-portrait{right:var(--pad);width:200px;top:110px;transform:none}.js .hero-portrait.hero-in,.js.loaded .hero-portrait.hero-in{transform:none}.js .hero-portrait.hero-in{opacity:0}.js.loaded .hero-portrait.hero-in{opacity:1}.hero-portrait figcaption{display:none}.hp-arch{outline-offset:8px}}
@@ -291,3 +291,36 @@ p{margin:0 0 1.1em;color:var(--ivory-2)}
   .marquee-track>*:nth-child(n+17){display:none}
   [data-parallax]{transform:none!important}
 }
+
+/* hero video: never show native controls / iOS start button */
+.hero-video::-webkit-media-controls,.hero-video::-webkit-media-controls-panel,.hero-video::-webkit-media-controls-overlay-play-button,.hero-video::-webkit-media-controls-start-playback-button{display:none!important;-webkit-appearance:none;opacity:0!important}
+.hero-video{pointer-events:none;background:var(--ink)}
+.motion-toggle{position:absolute;right:var(--pad);bottom:20px;z-index:3;background:none;border:0;padding:6px 0;color:rgba(244,237,228,.55);font:600 10.5px/1 var(--sans);letter-spacing:.22em;text-transform:uppercase;cursor:pointer}
+.motion-toggle:hover{color:var(--ivory)}
+@media (max-width:700px){.motion-toggle{right:auto;left:var(--pad);bottom:16px}}
+
+/* scroll-linked portrait morph (desktop) */
+.morph{position:absolute;left:0;top:0;z-index:40;overflow:hidden;pointer-events:none;display:none;will-change:transform,width,height,border-radius;background:var(--ink-3);box-shadow:0 40px 100px rgba(0,0,0,.5)}
+.morph img{width:100%;height:100%;object-fit:cover;object-position:50% 22%}
+.morph-on .morph{display:block}
+.morph-on #hero-slot img,.morph-on #about-slot img{visibility:hidden}
+.morph-on .hero-portrait .hp-arch{box-shadow:none;background:transparent}
+.morph-on #about-slot{background:transparent}
+.morph-on .about-portrait.reveal{opacity:1;transform:none}
+.js .morph{opacity:0;transition:opacity 1.2s var(--ease) .8s}
+.js.loaded .morph{opacity:1}
+
+/* watch: video + instagram */
+.watch-grid{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(300px,1fr);gap:clamp(28px,4vw,64px);align-items:start}
+.watch-h3,.watch-reel h3{font-family:var(--serif);font-size:clamp(28px,2.6vw,38px);line-height:1.1;margin:0 0 8px}
+.watch-h3 em,.watch-reel h3 em{color:var(--rose)}
+.reel-note{font-size:14px;color:var(--muted);margin-bottom:20px}
+.ig-wrap{border-radius:10px;overflow:hidden;background:var(--ink-3);box-shadow:0 30px 80px rgba(0,0,0,.5),0 0 0 1px var(--line);min-height:200px;padding:0}
+.ig-wrap .instagram-media{margin:0!important;min-width:0!important;max-width:100%!important;width:100%!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:var(--ink-3)!important}
+.ig-wrap blockquote.instagram-media{padding:28px!important;text-align:center}
+.ig-wrap blockquote.instagram-media a{color:var(--rose);font-family:var(--sans);font-size:13px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none}
+.ig-wrap iframe{display:block;margin:0!important;border-radius:0!important}
+@media (max-width:960px){.watch-grid{grid-template-columns:1fr}.watch-reel{max-width:480px;width:100%;margin:0 auto}}
+.hp-arch{transition:outline-color .4s}
+.morph-on.morph-left .hero-portrait .hp-arch{outline-color:transparent}
+.about-copy{position:relative;z-index:41}

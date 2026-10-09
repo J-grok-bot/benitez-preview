@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Manrope:wght@300;400;500;600&display=swap">
 <link rel="preload" as="image" href="assets/video/hero-poster.jpg">
-<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/style.css?v=2">
 <script>document.documentElement.classList.add('js')</script>
 </head>
 <body>
@@ -42,9 +42,16 @@
 <!-- HERO -->
 <section class="hero" id="top" aria-label="Introduction">
   <div class="hero-media" data-parallax="0.35">
-    <video class="hero-video" autoplay muted loop playsinline preload="none" poster="assets/video/hero-poster.jpg" aria-hidden="true">
-      <source data-src="assets/video/hero.webm" type="video/webm">
-      <source data-src="assets/video/hero.mp4" type="video/mp4">
+    <!--
+      HERO BACKGROUND VIDEO (TBD): to swap it, replace assets/video/hero.mp4 with a new
+      H.264 MP4 of the same name (muted loop, ~10-20 s, ~1-5 MB). That's the only file needed:
+      MP4 is listed first, so every modern browser uses it. hero.webm is just a fallback
+      (replace or delete it). Optionally replace assets/video/hero-poster.jpg (shown only for
+      the split second before playback). Current clip: "My Way" Instagram reel DXpyp0sjkG0.
+    -->
+    <video class="hero-video" autoplay muted loop playsinline webkit-playsinline disablepictureinpicture disableremoteplayback preload="auto" poster="assets/video/hero-poster.jpg" aria-hidden="true" tabindex="-1">
+      <source src="assets/video/hero.mp4?v=2" type="video/mp4">
+      <source src="assets/video/hero.webm?v=2" type="video/webm">
     </video>
   </div>
   <div class="hero-veil" aria-hidden="true"></div>
@@ -63,13 +70,13 @@
     </div>
   </div>
 
-  <figure class="hero-portrait hero-in" style="--d:.8s" aria-hidden="true">
-    <div class="hp-arch" data-parallax="-0.12"><img src="assets/img/cunegonde-candide-800.jpg" alt="" width="800" height="872"></div>
-    <figcaption>Cunegonde · <em>Candide</em></figcaption>
-  </figure>
+  <div class="hero-portrait hero-in" style="--d:.8s" aria-hidden="true">
+    <div class="hp-arch" id="hero-slot"><img src="assets/img/frankie-portrait-800.jpg" srcset="assets/img/frankie-portrait-800.jpg 800w, assets/img/frankie-portrait-1600.jpg 1600w" sizes="(max-width: 700px) 40vw, 24vw" alt="" width="800" height="1123"></div>
+  </div>
 
   <a class="scroll-cue hero-in" style="--d:1.4s" href="#about" aria-label="Scroll to About"><span>Scroll</span><i></i></a>
-  <p class="hero-caption hero-in" style="--d:1.6s">“Let It Go” · Miami Classical Music Festival</p>
+  <p class="hero-caption hero-in" style="--d:1.6s">“My Way” · UCF Senior Showcase</p>
+  <button class="motion-toggle hero-in" style="--d:1.6s" type="button" aria-pressed="false">Pause background video</button>
 </section>
 
 <!-- MARQUEE -->
@@ -84,8 +91,8 @@
 <section class="section about" id="about">
   <div class="container about-grid">
     <figure class="about-portrait reveal">
-      <div class="portrait-frame">
-        <img src="assets/img/frankie-portrait-800.jpg" srcset="assets/img/frankie-portrait-800.jpg 800w, assets/img/frankie-portrait-1600.jpg 1600w" sizes="(max-width: 860px) 90vw, 40vw" alt="Portrait of Frankie Benitez smiling, wearing a black turtleneck" width="800" height="1123" loading="lazy" data-parallax="-0.08">
+      <div class="portrait-frame" id="about-slot">
+        <img src="assets/img/frankie-portrait-800.jpg" srcset="assets/img/frankie-portrait-800.jpg 800w, assets/img/frankie-portrait-1600.jpg 1600w" sizes="(max-width: 860px) 90vw, 40vw" alt="Portrait of Frankie Benitez smiling, wearing a black turtleneck" width="800" height="1123" loading="eager">
       </div>
       <figcaption>Frankie Benitez</figcaption>
     </figure>
@@ -167,16 +174,32 @@
   <div class="container">
     <div class="section-head">
       <p class="eyebrow reveal">04 — Watch</p>
-      <h2 class="display reveal" id="watch-title">“Let It Go” <em>for Miami Music Festival</em></h2>
+      <h2 class="display reveal" id="watch-title">Watch her <em>sing</em></h2>
     </div>
-    <div class="video-frame reveal">
-      <video id="feature-video" controls preload="none" playsinline poster="assets/video/letitgo-poster.jpg" width="1052" height="592">
-        <source src="assets/video/letitgo.mp4" type="video/mp4">
-        Your browser can’t play this video. <a href="assets/video/letitgo.mp4">Download it here</a>.
-      </video>
-      <button class="video-play" aria-label="Play “Let It Go” video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
+    <div class="watch-grid">
+      <div class="watch-main">
+        <p class="eyebrow reveal">Video</p>
+        <h3 class="watch-h3 reveal">“Let It Go” <em>· Miami Classical Music Festival</em></h3>
+        <div class="video-frame reveal">
+          <video id="feature-video" controls preload="none" playsinline poster="assets/video/letitgo-poster.jpg" width="1052" height="592">
+            <source src="assets/video/letitgo.mp4" type="video/mp4">
+            Your browser can’t play this video. <a href="assets/video/letitgo.mp4">Download it here</a>.
+          </video>
+          <button class="video-play" aria-label="Play “Let It Go” video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
+        </div>
+        <p class="video-note reveal">“Let It Go,” performed outdoors with full projection-mapped visuals at the Miami Classical Music Festival.</p>
+      </div>
+      <aside class="watch-reel reveal" aria-labelledby="reel-title">
+        <p class="eyebrow">On Instagram</p>
+        <h3 id="reel-title">“My Way” <em>· Senior Showcase</em></h3>
+        <p class="reel-note">Frank Sinatra’s “My Way” from her senior showcase at UCF.</p>
+        <div class="ig-wrap" id="ig-wrap">
+          <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/reel/DXpyp0sjkG0/?utm_source=ig_embed&amp;utm_campaign=loading" data-instgrm-version="14">
+            <a href="https://www.instagram.com/frankiebenitezmusic/reel/DXpyp0sjkG0/" target="_blank" rel="noopener">Watch “My Way” on Instagram ↗</a>
+          </blockquote>
+        </div>
+      </aside>
     </div>
-    <p class="video-note reveal">Performed outdoors with full projection-mapped visuals at the Miami Classical Music Festival.</p>
   </div>
 </section>
 
@@ -274,6 +297,9 @@
 
 </main>
 
+<!-- Scroll-linked portrait that travels from the hero into the About slot (desktop only) -->
+<div class="morph" id="morph" aria-hidden="true"><img src="assets/img/frankie-portrait-1600.jpg" alt="" width="1600" height="2246"></div>
+
 <footer class="footer">
   <div class="container footer-inner">
     <p class="footer-name">Frankie <em>Benitez</em></p>
@@ -293,6 +319,6 @@
   <button class="lb-btn lb-next" aria-label="Next photo">→</button>
 </div>
 
-<script src="assets/js/main.js" defer></script>
+<script src="assets/js/main.js?v=2" defer></script>
 </body>
 </html>

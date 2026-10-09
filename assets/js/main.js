@@ -6,17 +6,34 @@
   // Entrance
   requestAnimationFrame(function () { requestAnimationFrame(function () { doc.classList.add('loaded'); }); });
 
-  // Hero video: load sources only when motion is OK and connection isn't data-saver
+  // Hero background video: always muted/inline autoplay (attributes in HTML), with a JS play() fallback
   var hv = document.querySelector('.hero-video');
-  var saveData = navigator.connection && navigator.connection.saveData;
+  var mt = document.querySelector('.motion-toggle');
+  var userPaused = false;
+  function tryPlay() {
+    if (!hv || userPaused) return;
+    hv.muted = true; hv.defaultMuted = true; hv.playsInline = true;
+    hv.setAttribute('muted', ''); hv.setAttribute('playsinline', '');
+    var p = hv.play(); if (p && p.catch) p.catch(function () {});
+  }
   if (hv) {
-    if (!reduce && !saveData) {
-      hv.querySelectorAll('source[data-src]').forEach(function (s) { s.src = s.getAttribute('data-src'); });
-      hv.load();
-      var p = hv.play(); if (p && p.catch) p.catch(function () {});
-    } else {
-      hv.removeAttribute('autoplay');
-    }
+    tryPlay();
+    hv.addEventListener('loadeddata', tryPlay);
+    hv.addEventListener('canplay', tryPlay);
+    // iOS Low Power Mode / strict autoplay: start on the first user interaction
+    ['touchstart', 'pointerdown', 'scroll', 'keydown'].forEach(function (ev) {
+      window.addEventListener(ev, function once() { if (hv.paused) tryPlay(); window.removeEventListener(ev, once); }, { passive: true });
+    });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) tryPlay(); });
+    // Accessible pause control (WCAG 2.2.2); reduced-motion users start paused
+    if (reduce) { userPaused = true; hv.removeAttribute('autoplay'); hv.pause(); }
+    function syncToggle() { if (mt) { mt.textContent = userPaused ? 'Play background video' : 'Pause background video'; mt.setAttribute('aria-pressed', userPaused); } }
+    if (mt) mt.addEventListener('click', function () {
+      userPaused = !userPaused;
+      if (userPaused) hv.pause(); else tryPlay();
+      syncToggle();
+    });
+    syncToggle();
   }
 
   // Nav: scrolled state, mobile menu, active link
@@ -138,6 +155,65 @@
     if (tx === null) return; var dx = e.changedTouches[0].clientX - tx;
     if (Math.abs(dx) > 50) show(idx + (dx < 0 ? 1 : -1)); tx = null;
   });
+
+  // Scroll-linked portrait: travels from the hero slot into the About slot (desktop, motion OK)
+  var morph = document.getElementById('morph');
+  var heroSlot = document.getElementById('hero-slot');
+  var aboutSlot = document.getElementById('about-slot');
+  var mq = window.matchMedia('(min-width: 1101px)');
+  var geo = null;
+  function docRect(el) { var r = el.getBoundingClientRect(); return { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height }; }
+  function measure() {
+    if (!morph || reduce || !mq.matches) { doc.classList.remove('morph-on'); geo = null; return; }
+    // measure slots without transforms from entrance/reveal animations
+    var hp = heroSlot.parentElement, ap = aboutSlot.closest('.about-portrait');
+    var ht = hp.style.transform, at = ap.style.transform;
+    hp.style.transition = ap.style.transition = 'none'; hp.style.transform = 'translateY(-46%)'; ap.style.transform = 'none';
+    var a = docRect(heroSlot), b = docRect(aboutSlot);
+    hp.style.transform = ht; ap.style.transform = at; hp.style.transition = ap.style.transition = '';
+    var vh = window.innerHeight;
+    var end = Math.max(1, b.y + b.h / 2 - vh / 2 - 20);   // scroll position where the About slot sits centered
+    geo = { a: a, b: b, end: end,
+      ra: a.w / 2, rb: parseFloat(getComputedStyle(aboutSlot).borderTopLeftRadius) || 240 };
+    doc.classList.add('morph-on');
+    placeMorph();
+  }
+  function lerp(x, y, t) { return x + (y - x) * t; }
+  function ease(t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  function placeMorph() {
+    if (!geo) return;
+    var t = Math.min(1, Math.max(0, window.scrollY / geo.end)), e = ease(t);
+    doc.classList.toggle('morph-left', t > 0.02);
+    var a = geo.a, b = geo.b;
+    var x = lerp(a.x, b.x, e), y = lerp(a.y, b.y, e), w = lerp(a.w, b.w, e), h = lerp(a.h, b.h, e);
+    var r = lerp(geo.ra, geo.rb, e);
+    morph.style.width = w + 'px'; morph.style.height = h + 'px';
+    morph.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0)';
+    morph.style.borderRadius = r.toFixed(1) + 'px ' + r.toFixed(1) + 'px 6px 6px';
+    morph.style.boxShadow = '0 ' + lerp(40, 20, e) + 'px ' + lerp(100, 60, e) + 'px rgba(0,0,0,' + lerp(.55, .35, e) + ')';
+  }
+  if (morph) {
+    window.addEventListener('scroll', function () { if (geo) requestAnimationFrame(placeMorph); }, { passive: true });
+    var rT; window.addEventListener('resize', function () { clearTimeout(rT); rT = setTimeout(measure, 120); });
+    if (mq.addEventListener) mq.addEventListener('change', measure);
+    window.addEventListener('load', measure);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
+    measure();
+  }
+
+  // Instagram embed: load the official embed.js only when the section gets close
+  var ig = document.getElementById('ig-wrap');
+  if (ig) {
+    var loadIg = function () {
+      if (window.instgrm) { window.instgrm.Embeds.process(); return; }
+      var sc = document.createElement('script'); sc.async = true; sc.src = 'https://www.instagram.com/embed.js';
+      document.body.appendChild(sc);
+    };
+    if ('IntersectionObserver' in window) {
+      var igo = new IntersectionObserver(function (en) { if (en[0].isIntersecting) { loadIg(); igo.disconnect(); } }, { rootMargin: '600px 0px' });
+      igo.observe(ig);
+    } else loadIg();
+  }
 
   // "Inquire about lessons" preselects the subject
   document.querySelectorAll('[data-subject]').forEach(function (a) {
