@@ -9,11 +9,11 @@
   // Hero background video: always muted/inline autoplay (attributes in HTML), with a JS play() fallback
   var hv = document.querySelector('.hero-video');
   var mt = document.querySelector('.motion-toggle');
-  var userPaused = false;
+  var userPaused = false, heroOff = false;
   function tryPlay() {
-    if (!hv || userPaused) return;
-    hv.muted = true; hv.defaultMuted = true; hv.playsInline = true;
-    hv.setAttribute('muted', ''); hv.setAttribute('playsinline', '');
+    if (!hv || userPaused || heroOff) return;
+    if (!hv.dataset.init) { hv.muted = true; hv.defaultMuted = true; hv.dataset.init = '1'; }
+    hv.playsInline = true; hv.setAttribute('playsinline', '');
     var p = hv.play(); if (p && p.catch) p.catch(function () {});
   }
   if (hv) {
@@ -34,6 +34,37 @@
       syncToggle();
     });
     syncToggle();
+
+    // Sound toggle (video autoplays muted; unmuting needs this user click)
+    var snd = document.querySelector('.sound-toggle');
+    function syncSound() {
+      if (!snd) return;
+      var on = !hv.muted;
+      snd.setAttribute('aria-pressed', on);
+      snd.querySelector('span').textContent = on ? 'Sound off' : 'Sound on';
+      snd.setAttribute('aria-label', on ? 'Mute background video' : 'Unmute background video');
+    }
+    if (snd) snd.addEventListener('click', function () {
+      var turnOn = hv.muted;
+      hv.muted = !turnOn; hv.defaultMuted = !turnOn;
+      if (turnOn) {
+        if (hv.paused) { userPaused = false; syncToggle(); }
+        var pp = hv.play(); if (pp && pp.catch) pp.catch(function () { hv.muted = true; syncSound(); });
+      }
+      syncSound();
+    });
+    hv.addEventListener('volumechange', syncSound);
+    syncSound();
+    window.heroVideo = { el: hv, mute: function () { hv.muted = true; syncSound(); } };
+
+    // Pause when the hero is off-screen (saves CPU; stops audio as you leave), resume on return
+    if ('IntersectionObserver' in window) {
+      var heroVisible = true;
+      new IntersectionObserver(function (en) {
+        heroVisible = en[0].isIntersecting; heroOff = !heroVisible;
+        if (!heroVisible) hv.pause(); else if (!userPaused && !document.querySelector('.player.show')) tryPlay();
+      }, { threshold: 0.12 }).observe(document.querySelector('.hero'));
+    }
   }
 
   // Nav: scrolled state, mobile menu, active link
@@ -213,6 +244,92 @@
       var igo = new IntersectionObserver(function (en) { if (en[0].isIntersecting) { loadIg(); igo.disconnect(); } }, { rootMargin: '600px 0px' });
       igo.observe(ig);
     } else loadIg();
+  }
+
+  // Monogram dropdown (email + socials)
+  var bBtn = document.getElementById('brand-btn'), bMenu = document.getElementById('brand-menu');
+  if (bBtn && bMenu) {
+    var openMenu = function (open) {
+      bBtn.setAttribute('aria-expanded', open);
+      if (open) {
+        if (nav.classList.contains('open')) setOpen(false);
+        bMenu.hidden = false; requestAnimationFrame(function () { bMenu.classList.add('show'); });
+      } else {
+        bMenu.classList.remove('show'); setTimeout(function () { if (bBtn.getAttribute('aria-expanded') === 'false') bMenu.hidden = true; }, reduce ? 0 : 300);
+      }
+    };
+    bBtn.addEventListener('click', function (e) { e.stopPropagation(); openMenu(bBtn.getAttribute('aria-expanded') !== 'true'); });
+    document.addEventListener('click', function (e) { if (bBtn.getAttribute('aria-expanded') === 'true' && !bMenu.contains(e.target)) openMenu(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && bBtn.getAttribute('aria-expanded') === 'true') { openMenu(false); bBtn.focus(); } });
+    bMenu.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', function () { openMenu(false); }); });
+    toggle.addEventListener('click', function () { openMenu(false); });
+  }
+
+  // Media modal player (self-hosted videos with sound, photo carousels)
+  var player = document.getElementById('player');
+  if (player) {
+    var stage = player.querySelector('.player-stage'), pTitle = player.querySelector('#player-title'),
+        pCap = player.querySelector('.player-cap'), pIg = player.querySelector('.player-ig'),
+        pPrev = player.querySelector('.player-prev'), pNext = player.querySelector('.player-next'),
+        pClose = player.querySelector('.player-close'), pImgs = [], pIdx = 0, pLast = null, heroWasPlaying = false;
+    var showImg = function (i) {
+      pIdx = (i + pImgs.length) % pImgs.length;
+      stage.innerHTML = '';
+      var im = new Image(); im.src = pImgs[pIdx]; im.alt = pTitle.textContent + ' (photo ' + (pIdx + 1) + ' of ' + pImgs.length + ')';
+      stage.appendChild(im);
+    };
+    var openPlayer = function (btn) {
+      pLast = btn;
+      var type = btn.dataset.type;
+      pTitle.textContent = btn.dataset.title; pCap.textContent = btn.dataset.caption;
+      if (btn.dataset.ig) { pIg.href = btn.dataset.ig; pIg.hidden = false; } else pIg.hidden = true;
+      stage.innerHTML = '';
+      if (type === 'video') {
+        pPrev.hidden = pNext.hidden = true;
+        var v = document.createElement('video');
+        v.src = btn.dataset.src; v.poster = btn.dataset.poster; v.controls = true; v.playsInline = true; v.preload = 'auto';
+        v.setAttribute('playsinline', ''); v.setAttribute('controlslist', 'nodownload');
+        stage.appendChild(v);
+        var pr = v.play(); if (pr && pr.catch) pr.catch(function () {});
+      } else {
+        pImgs = btn.dataset.src.split('|');
+        pPrev.hidden = pNext.hidden = pImgs.length < 2;
+        showImg(0);
+      }
+      if (hv) { heroWasPlaying = !hv.paused; hv.pause(); }
+      player.hidden = false; document.body.style.overflow = 'hidden';
+      requestAnimationFrame(function () { player.classList.add('show'); });
+      pClose.focus();
+    };
+    var closePlayer = function () {
+      var v = stage.querySelector('video'); if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
+      player.classList.remove('show'); document.body.style.overflow = '';
+      setTimeout(function () { player.hidden = true; stage.innerHTML = ''; }, reduce ? 0 : 300);
+      if (pLast) pLast.focus();
+    };
+    document.querySelectorAll('.m-open').forEach(function (b) { b.addEventListener('click', function () { openPlayer(b); }); });
+    pClose.addEventListener('click', closePlayer);
+    pPrev.addEventListener('click', function () { showImg(pIdx - 1); });
+    pNext.addEventListener('click', function () { showImg(pIdx + 1); });
+    player.addEventListener('click', function (e) { if (e.target === player || e.target.classList.contains('player-inner')) closePlayer(); });
+    document.addEventListener('keydown', function (e) {
+      if (player.hidden) return;
+      if (e.key === 'Escape') closePlayer();
+      else if (e.key === 'ArrowRight' && !pNext.hidden) showImg(pIdx + 1);
+      else if (e.key === 'ArrowLeft' && !pPrev.hidden) showImg(pIdx - 1);
+      else if (e.key === 'Tab') {
+        var f = [].slice.call(player.querySelectorAll('button:not([hidden]), a[href]:not([hidden]), video')),
+            first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
+    var ptx = null;
+    player.addEventListener('touchstart', function (e) { ptx = e.touches[0].clientX; }, { passive: true });
+    player.addEventListener('touchend', function (e) {
+      if (ptx === null || pNext.hidden) return; var dx = e.changedTouches[0].clientX - ptx;
+      if (Math.abs(dx) > 50) showImg(pIdx + (dx < 0 ? 1 : -1)); ptx = null;
+    });
   }
 
   // "Inquire about lessons" preselects the subject
